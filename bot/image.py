@@ -31,7 +31,10 @@ def _pollinations(prompt: str) -> Image.Image:
 
 def _gemini_image(prompt: str) -> Image.Image:
     key = os.environ["GEMINI_API_KEY"]
-    model = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+    model = os.environ.get("GEMINI_IMAGE_MODEL", "")
+    if not model:
+        from content import pick_model
+        model = pick_model(want_image=True)
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
            f"{model}:generateContent?key={key}")
     body = {"contents": [{"parts": [{"text": prompt + ". Vertical 9:16 image."}]}],
