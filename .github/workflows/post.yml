@@ -1,0 +1,74 @@
+name: Funtoonia daily reels
+
+on:
+  schedule:
+    - cron: "7 2 * * *"    # 07:37 IST  - feel-good reel
+    - cron: "13 8 * * *"   # 13:43 IST  - funny reel
+    - cron: "41 14 * * *"  # 20:11 IST  - news reel
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "feelgood, funny or news"
+        required: true
+        default: "feelgood"
+      dry_run:
+        description: "true = make the video but don't post"
+        required: true
+        default: "true"
+
+permissions:
+  contents: write
+
+concurrency: funtoonia-post
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick mode
+        id: m
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ inputs.mode }}" >> $GITHUB_OUTPUT
+            [ "${{ inputs.dry_run }}" = "true" ] && echo "flag=--dry-run" >> $GITHUB_OUTPUT || true
+          else
+            case "${{ github.event.schedule }}" in
+              "7 2 * * *")   echo "mode=feelgood" >> $GITHUB_OUTPUT ;;
+              "13 8 * * *")  echo "mode=funny" >> $GITHUB_OUTPUT ;;
+              *)             echo "mode=news" >> $GITHUB_OUTPUT ;;
+            esac
+          fi
+
+      - name: Install
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+          pip install -q requests pillow
+
+      - name: Make and post reel
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PAGE_ACCESS_TOKEN: ${{ secrets.PAGE_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          POLLINATIONS_TOKEN: ${{ secrets.POLLINATIONS_TOKEN }}
+        run: python bot/main.py ${{ steps.m.outputs.mode }} ${{ steps.m.outputs.flag }}
+
+      - name: Keep a copy of the video (7 days)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-${{ steps.m.outputs.mode }}-${{ github.run_id }}
+          path: out/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Save history (avoids repeats)
+        if: success()
+        run: |
+          git config user.name "funtoonia-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add state/ || true
+          git diff --cached --quiet || (git commit -m "history update" && git push)
