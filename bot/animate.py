@@ -135,18 +135,13 @@ def _audio(mode, weather, out):
                         f"afade=in:d=1,afade=out:st={SECONDS-1.5}:d=1.5,volume=0.8",
                         "-ac", "2", "-ar", "44100", out], check=True)
         return out
-    # fallback: soft rain ambience or a gentle synth pad (no music files added)
-    if weather == "rain":
-        flt = ("anoisesrc=c=brown:a=0.5:d={d},lowpass=f=1200,highpass=f=150,"
-               "volume=0.6").format(d=SECONDS)
-    else:
-        flt = ("sine=f=220:d={d},volume=0.15[a];sine=f=277.2:d={d},volume=0.1[b];"
-               "sine=f=329.6:d={d},volume=0.1[c];[a][b][c]amix=3,"
-               "tremolo=f=0.3:d=0.4,lowpass=f=900,aecho=0.8:0.7:400:0.4").format(d=SECONDS)
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", flt,
-                    "-t", str(SECONDS), "-af",
-                    f"afade=in:d=1.5,afade=out:st={SECONDS-2}:d=2",
+    # no music files added: compose an original, copyright-free track
+    from music import compose
+    wav = out + ".wav"
+    compose(mode, SECONDS, wav, weather)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", wav,
                     "-ac", "2", "-ar", "44100", out], check=True)
+    os.remove(wav)
     return out
 
 
