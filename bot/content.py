@@ -11,7 +11,35 @@ import xml.etree.ElementTree as ET
 import requests
 
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "")
+API = "https://generativelanguage.googleapis.com/v1beta"
+
+
+def pick_model(want_image=False):
+    """Ask Google which models this key can use and pick the best free one,
+    so the bot keeps working when Google retires old model names."""
+    r = requests.get(f"{API}/models", params={"key": GEMINI_KEY, "pageSize": 200},
+                     timeout=30)
+    r.raise_for_status()
+    names = [m["name"].split("/")[-1] for m in r.json().get("models", [])
+             if "generateContent" in m.get("supportedGenerationMethods", [])]
+    bad = ("tts", "live", "audio", "embedding", "thinking", "exp", "preview",
+           "computer", "robotics")
+    if want_image:
+        cands = [n for n in names if "image" in n and "flash" in n]
+    else:
+        cands = [n for n in names if "flash" in n and "image" not in n
+                 and not any(b in n for b in bad)]
+        cands = cands or [n for n in names if "flash" in n and "image" not in n]
+    if not cands:
+        raise RuntimeError(f"No suitable Gemini model in: {names}")
+
+    def ver(n):
+        v = [-int(x) for x in re.findall(r"\d+", n)][:3]
+        return v + [0] * (3 - len(v))
+    cands.sort(key=lambda n: ("lite" in n, ver(n)))
+    print("Gemini models available:", cands[:5])
+    return cands[0]
 
 STYLE = ("anime style, Studio Ghibli inspired, cinematic lighting, soft colors, "
          "highly detailed background, vertical composition, no text, no letters, "
@@ -41,8 +69,8 @@ BLOCK_WORDS = re.compile(
 def _gemini_json(prompt: str) -> dict:
     if not GEMINI_KEY:
         raise RuntimeError("GEMINI_API_KEY secret is missing")
-    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}")
+    model = GEMINI_MODEL or pick_model()
+    url = f"{API}/models/{model}:generateContent?key={GEMINI_KEY}"
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"responseMimeType": "application/json",
