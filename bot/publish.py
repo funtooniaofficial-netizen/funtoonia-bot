@@ -7,7 +7,7 @@ import time
 
 import requests
 
-V = os.environ.get("GRAPH_VERSION", "v21.0")
+V = os.environ.get("GRAPH_VERSION", "v25.0")
 G = f"https://graph.facebook.com/{V}"
 TOKEN = os.environ.get("PAGE_ACCESS_TOKEN", "")
 IG_ID = os.environ.get("IG_USER_ID", "")
