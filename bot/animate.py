@@ -130,7 +130,16 @@ def _audio(mode, weather, out):
     tracks = glob.glob(f"music/{mode}/*.mp3") + glob.glob(f"music/{mode}/*.m4a")
     if tracks:
         src = random.choice(tracks)
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-t",
+        try:  # start somewhere in the catchy middle, not the quiet intro
+            dur = float(subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                 "-of", "csv=p=0", src], capture_output=True, text=True).stdout)
+            start = random.uniform(min(8, dur / 4), max(min(8, dur / 4), dur - SECONDS - 8))
+        except ValueError:
+            start = 0
+        print(f"music: {src} from {start:.0f}s")
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{start:.2f}",
+                        "-i", src, "-t",
                         str(SECONDS), "-af",
                         f"afade=in:d=1,afade=out:st={SECONDS-1.5}:d=1.5,volume=0.8",
                         "-ac", "2", "-ar", "44100", out], check=True)
